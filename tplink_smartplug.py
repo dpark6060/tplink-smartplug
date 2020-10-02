@@ -23,6 +23,7 @@ import sys
 import socket
 import argparse
 from struct import pack
+import time
 
 version = 0.3
 
@@ -62,7 +63,9 @@ commands = {		'info'     : '{"system":{"get_sysinfo":{}}}',
 			'antitheft': '{"anti_theft":{"get_rules":{}}}',
 			'reboot'   : '{"system":{"reboot":{"delay":1}}}',
 			'reset'    : '{"system":{"reset":{"delay":1}}}',
-			'energy'   : '{"emeter":{"get_realtime":{}}}'
+			'energy'   : '{"emeter":{"get_realtime":{}}}',
+			'hue': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"hue": 0}}}'	
+			#'hue': '{"light_state": {"hue": 0}}'
 }
 
 # Encryption and Decryption of TP-Link Smart Home Protocol
@@ -134,13 +137,18 @@ try:
 	sock_tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sock_tcp.settimeout(int(args.timeout))
 	sock_tcp.connect((ip, port))
+	sock_tcp.send(encrypt(cmd))
+	time.sleep(1)
+	cmd = '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"hue": 120}}}'
+	sock_tcp.send(encrypt(cmd))
 	sock_tcp.settimeout(None)
 	sock_tcp.send(encrypt(cmd))
 	data = sock_tcp.recv(2048)
 	sock_tcp.close()
-
+	
 	decrypted = decrypt(data[4:])
-
+	print(decrypted)
+	# 
 	if args.quiet:
 		print(decrypted)
 	else:
