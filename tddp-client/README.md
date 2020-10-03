@@ -26,3 +26,36 @@ Reading out the WAN link status on an Archer C9 in default configuration shows t
    Reply Data:   Version 02 Type 03 Status 00 Length 00000018 ID 0001 Subtype 0e
    Decrypted:    wan_ph_link 1 0
    ```
+
+
+## IGNORE ALL THAT ##
+This isn't for some bitch ass turning an oulet on and off.  This isn't about
+doing one or two color changes as the day goes on.  This isn't about 
+having one light do some cool cycle of colors.  This project is about bombarding 
+your lights with API requests so fast and so hard they'll think it's a DDOS attack.
+This is about taking whatever shitty system they built for these lights and
+
+B . R . E . A . K . I . N . G 
+
+it.  By the end of this, you will be confused, disoriented, exhausted. Your lights 
+will be audibly whimpering, visibly shaken.  A shadow of their former selves.  No longer
+will your KASA hue bulbs be allowed to lounge comfortably, doing little to no work.
+No longer will they BEGRUDGINGLY allow you an awkward to manage set of scenes.  We are going
+to use the lowest level of HTTP commands to rip open a socket, and shove it so full of requests
+you may just end up sending light to the 5th dimension.  OH BUT THE SOCKET CLOSES RANDOMLY?
+
+## NOT
+## A
+## PROBLEM  
+
+DO YOU KNOW WHY? Because every few minutes, we PREEMPTIVELY reconnect.
+JUST FOR FUN.  Forget everything you know about HTTP protocols, because
+I didn't know jack shit about that when I wrote this.  I stole and coppied
+and googled and scrim scrapped this work together, and when it didn't work, 
+ohhhh you better fucking beleive I try...excepted the shit out of that, with merciless numbers
+connect requests and POST commands.  
+
+But damnit, it works.  
+
+By now I'm sure you can sense your lightbulbs fear.  That's good.  That's the first step.
+

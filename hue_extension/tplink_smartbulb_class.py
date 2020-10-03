@@ -28,12 +28,59 @@ import json
 from itertools import cycle
 import random
 import pprint
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import csv
+
+import simpleaudio as sa
+import wave
+import progressbar
+import os
+import logging
+
+progressbar.streams.wrap_stderr()
+logging.basicConfig()
+
 
 lst = ['a', 'b', 'c']
 
 
 
 version = 0.3
+
+
+messages = ['Initiating Scan...Scanning....',
+            'Party Levels Low.',
+            'Searching for good vibes',
+            'Calculating chance of tequila',
+            'Identifying mood',
+            'Engaging in amp-up protocol',
+            'Finding Hypeman',
+            'Identifying Party People',
+            'Eliminating Buzz Kills',
+            'Initiate Mood Booster Subroutine',
+            'Identifying optimal party subroutine']
+
+message_times = [0.25,
+                 3,
+                 1,
+                 0.5,
+                 0.25,
+                 0.25,
+                 1,
+                 0.25,
+                 2,
+                 1,
+                 0.5]
+
+
+def progress_bar(message, duration):
+    
+    sleep = duration/100.0
+    print(message)
+    for i in progressbar.progressbar(range(100), redirect_stdout=True):
+        time.sleep(sleep)
 
 
 
@@ -97,6 +144,9 @@ class tplink_huebulb:
         self.prev_brightness = 0
         self.prev_sat = 0
         
+        self.party_hue = 0
+        self.party_hues = [0, 120, 240]
+        
         self.commands={
             'hue': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"hue": ^IN}}}',
             'on': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"on_off": 1}}}',
@@ -159,6 +209,13 @@ class tplink_huebulb:
             self.prev_saturation = self.saturation
             self.saturation = val
     
+    
+    def party_once(self):
+        party_hue = self.party_hue
+        while party_hue == self.party_hue:
+            party_hue = random.choice(self.party_hues)
+        self.send_command('hue', party_hue)
+        self.party_hue = party_hue
 
         
     def __exit__(self):
@@ -188,7 +245,7 @@ class bulb_group:
         self.nbulbs = len(self.bulbs)
         self.call_time = 0.001*self.nbulbs
         self.party_hue = 0
-        self.party_hues = [0, 120, 140]
+        self.party_hues = [0, 120, 240]
         self.prev_hue = 0
         self.prev_brightness = 0
         self.prev_sat = 0
@@ -255,13 +312,13 @@ class bulb_group:
                 
                 
         
-    def party_once(self, delay=0.7):
+    def party_once(self):
         party_hue = self.party_hue
         while party_hue == self.party_hue:
             party_hue = random.choice(self.party_hues)
         self.send_command('hue', party_hue)
         self.party_hue = party_hue
-        time.sleep(delay)
+        
         
     def set_prev_hue(self):
         [bulb.set_prev_hue() for bulb in self.bulbs]
@@ -332,9 +389,41 @@ class space_group:
             hue1, hue2 = [hue2,hue1]
             time.sleep(delay)
             n-=1
+
+    def fun_party(self):
+        os.environ['WRAP_STDERR'] = 'true'
+        path_to_file = 'data/PartyStart.wav'
+        wave_read = wave.open(path_to_file, 'rb')
+        audio_data = wave_read.readframes(wave_read.getnframes())
+        num_channels = wave_read.getnchannels()
+        bytes_per_sample = wave_read.getsampwidth()
+        sample_rate = wave_read.getframerate()
+
+        wave_obj = sa.WaveObject(audio_data, num_channels, bytes_per_sample, sample_rate)
+        play_obj = wave_obj.play()
+
+        self.send_command('color_mode')
+        for m, t in zip(messages, message_times):
+            progress_bar(m, t)
             
-            
-            
+        self.send_command('hue',240)
+        
+        party_list = 'data/dancetypes.txt'
+        partyfile = open(party_list,'r')
+        lines = partyfile.readlines()
+        lines = [l.rstrip() for l in lines]
+        ntypes = len(lines)
+        total_time = 10.75
+        delay = total_time/ntypes
+        for i in progressbar.progressbar(range(ntypes)):
+                logging.error(f'{lines[i]}')
+                time.sleep(delay)
+
+        self.party()
+
+
+    def party(self):
+        [group.party() for group in self.groups]
     # colors = {
     #     'bedroom2': '192.168.0.107',
     #     'bedroom1': '192.168.0.153',
@@ -343,49 +432,11 @@ class space_group:
     #     'br_hall_color': '192.168.0.154',
     #     'kt_hall_color': '192.168.0.108'
     #     }
-
-l = ['192.168.0.137', '192.168.0.157']
-lr = bulb_group(l)
-
-l = '192.168.0.108'
-hk = tplink_huebulb(l)
-hk.status()
-# l = '192.168.0.154'
-# hb = tplink_huebulb(l)
-# 
-# l = ['192.168.0.107', '192.168.0.153']
-# br = bulb_group(l)
-# 
-# apt = space_group([br, hb, hk, lr])
-# 
-# 
-# whites = ['192.168.0.172', '192.168.0.182']
-# wh = bulb_group(whites)
-# 
-# 
-# wh.send_command('off')
-# 
-# colors = ['192.168.0.107', '192.168.0.153','192.168.0.154', '192.168.0.108','192.168.0.137', '192.168.0.157']
-# party = bulb_group(colors)
-# party.send_command('color_mode')
-# party.party()
-
-
-# apt.send_command('color_mode')
-# apt.party()
-# #apt.soft_pulse(delay=0.25, n=10)
-# 
-# backlight = 180
-# backlight_brightness = 50
-# pulselight = 0
-# #apt.reconnect()
-# #apt.soft_pulse_backlight(backlight, backlight_brightness,
-#                              #pulselight, delay=0.25, n=10)
-# apt.every_other(0, 180, n=10, delay=.55)
-# 
-# # time.sleep(1)
-# # #lr.rotate_hues([0,240])
-# # lr.alternate_flash(0)
-
+    
+    def party_once(self):
+        [group.party_once() for group in self.groups]
+        
+        
+        
 
 
