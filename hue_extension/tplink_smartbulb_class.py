@@ -148,15 +148,16 @@ class tplink_huebulb:
         self.party_hues = [0, 120, 240]
         
         self.commands={
-            'hue': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"hue": ^IN}}}',
-            'on': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"on_off": 1}}}',
-            'off':        '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"on_off": 0}}}',
-            'brightness': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"brightness": ^IN}}}',
-            'saturation': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"saturation": ^IN}}}',
+            
+            'hue': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default":1,"transition_period":0,"hue": ^IN}}}',
+            'on': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default":1,"transition_period":0,"on_off": 1}}}',
+            'off':        '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default":1,"transition_period":0,"on_off": 0}}}',
+            'brightness': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default": 1, "transition_period": 0,"brightness": ^IN}}}',
+            'saturation': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default": 1, "transition_period": 0,"saturation": ^IN}}}',
             'color_mode': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"saturation": 100, "brightness": 100, "color_temp": 0, "hue": 0}}}',
             'color_temp': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"color_temp": ^IN}}}',
-            'soft_off': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"brightness": 0, "hue": 0 }}}',
-            'bright_hue': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"hue": ^IN, "brightness": 100}}}'
+            'soft_off': '{"smçartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default":1,"transition_period":0,"brightness": 0, "hue": 0 }}}',
+            'bright_hue': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default":1,"transition_period":0,"hue": ^IN, "brightness": 100}}}'
         }
     
     def status(self):
@@ -171,6 +172,10 @@ class tplink_huebulb:
         decrypted = decrypt(data[4:])
         dj = json.loads(decrypted)
         pprint.pprint(dj)
+        
+    
+    def color_mode(self):
+        self.send_command('color_mode')
         
     
     def reconnect(self):
@@ -192,6 +197,7 @@ class tplink_huebulb:
         self.set_hue(self, self.prev_hue)
     
     def send_command(self, command, val=''):
+        
         if command == 'custom':
             self.cmd = '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": '+ val +'}}'
             self.send()
@@ -221,6 +227,22 @@ class tplink_huebulb:
     def __exit__(self):
         self.socket.close()
         
+    def test_state(self):
+        self.cmd = '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"hue": 0,"transition_period": 0}}}'
+        self.send()
+        time.sleep(1)
+        self.set_hue(120)
+        time.sleep(1)
+        self.set_hue(240)
+
+    def test_breathe(self,hue,tp):
+        self.cmd = '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"hue": '+str(hue)+',"transition_period": '+str(tp)+'}}}'
+        self.send()
+
+
+    def test_bright(self, bright, tp):
+        self.cmd = '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"brightness": '+str(bright)+',"transition_period": '+str(tp)+'}}}'
+        self.send()
         
 # colors = {
 #     'bedroom2': '192.168.0.107',
@@ -279,7 +301,7 @@ class bulb_group:
             new_hue =int(round(new_hue + dhue))
             time.sleep(delay)
     
-    def alternate_flash(self, hue,delay=0.7):
+    def alternate_flash(self, hue,delay=0.1):
         bulb_cycle = cycle(self.bulbs)
         
         self.send_command('soft_off')
@@ -293,20 +315,26 @@ class bulb_group:
         [bulb.reconnect() for bulb in self.bulbs]
         
         
-    def party(self, delay=0.7, hues = None, n=float('inf')):
+    def party(self, delay=0.05, hues = None, n=float('inf')):
         
         if not hues:
             hues = self.party_hues
         tick = time.time()
+        print('partying')
         while n != 0:
+            
             party_hue = random.choice(hues)
+            
             while party_hue == self.party_hue:
                 party_hue = random.choice(hues)
+                print(f'party_hue = {party_hue}')
+                
             self.send_command('hue', party_hue)
             self.party_hue = party_hue
             time.sleep(delay)
             n -= 1
             tock = time.time()
+            
             if tock - tick > 60*2:
                 self.reconnect()
                 
@@ -322,11 +350,19 @@ class bulb_group:
         
     def set_prev_hue(self):
         [bulb.set_prev_hue() for bulb in self.bulbs]
-        
+
+
+    def test_breathe(self, hue, tp):
+        [bulb.test_breathe(hue, tp) for bulb in self.bulbs]
+
+    def test_bright(self, bright, tp):
+        [bulb.test_bright(bright,tp) for bulb in self.bulbs]
+
         
 class space_group:
     def __init__(self, devices_list):
         self.groups = devices_list
+        self.party_hues = [0,120,240]
     
     def reconnect(self):
         [g.reconnect() for g in self.groups]
@@ -334,7 +370,7 @@ class space_group:
     def send_command(self, command, value=''):
         [g.send_command(command, value) for g in self.groups]
     
-    def pulse(self, delay=0.5, n=float('inf')):
+    def pulse(self, delay=0.1, n=float('inf')):
         self.send_command('off')
         
         while n > 0:
@@ -344,27 +380,28 @@ class space_group:
                 group.send_command('off')
                 n -= 1
 
-    def soft_pulse(self, delay=0.5, n=float('inf')):
+    def soft_pulse(self, delay=0.1, n=float('inf')):
         self.send_command('on')
         self.send_command('brightness',0)
-
+        hues = cycle(self.party_hues)
+        i=0
         while n > 0:
+            hue=next(hues)
             self.send_command('brightness', 0)
+            
             for group in self.groups:
-                group.send_command('brightness', 100)
+                group.send_command('bright_hue', hue)
                 time.sleep(delay)
                 group.send_command('brightness', 0)
+                
                 
             n -= 1
 
     def soft_pulse_backlight(self, backlight, backlight_brightness,
                              pulselight, delay=0.5, n=float('inf')):
         
-        self.send_command('on')
-        self.send_command('hue', backlight)
-        self.send_command('brightness', backlight_brightness)
-        bl_command = '{"hue": '+ str(backlight) + ',"brightness": '+ str(backlight_brightness)+'}'
-        pl_command = '{"hue": '+ str(pulselight) + ',"brightness": '+ str(100)+'}'
+        bl_command = '{"transition_period": 0, "hue": '+ str(backlight) + ',"brightness": '+ str(backlight_brightness)+'}'
+        pl_command = '{"transition_period": 0, "hue": '+ str(pulselight) + ',"brightness": '+ str(100)+'}'
         print(bl_command)
         print(pl_command)
         
@@ -413,7 +450,7 @@ class space_group:
         lines = partyfile.readlines()
         lines = [l.rstrip() for l in lines]
         ntypes = len(lines)
-        total_time = 10.75
+        total_time = 11.2
         delay = total_time/ntypes
         for i in progressbar.progressbar(range(ntypes)):
                 logging.error(f'{lines[i]}')
@@ -422,21 +459,39 @@ class space_group:
         self.party()
 
 
-    def party(self):
-        [group.party() for group in self.groups]
-    # colors = {
-    #     'bedroom2': '192.168.0.107',
-    #     'bedroom1': '192.168.0.153',
-    #     'livingroom2': '192.168.0.137', - close to hw
-    #     'livingroom1': '192.168.0.157', - close to door
-    #     'br_hall_color': '192.168.0.154',
-    #     'kt_hall_color': '192.168.0.108'
-    #     }
+    def party(self, delay=0.1):
+        while True:
+            [group.party_once() for group in self.groups]
+            time.sleep(delay)
+            
+    def test_breathe(self, hue, tp):
+        [group.test_breathe(hue, tp) for group in self.groups]
+        
+    def test_bright(self, bright, tp):
+        [group.test_bright(bright,tp) for group in self.groups]
     
     def party_once(self):
         [group.party_once() for group in self.groups]
-        
-        
-        
 
+
+    def timed_pulse(self, transition=1000, delay=0.1, interval=5, n=float('inf')):
+        
+        hues = cycle([0, 120, 240])
+       
+        
+        while n > 0:
+            hue = next(hues)
+            tick = time.time()
+            for group in self.groups:
+                group.test_breathe(hue, transition)
+                time.sleep(delay)
+                
+            tock = time.time()
+            while tock-tick < interval:
+                time.sleep(0.05)
+                tock = time.time()
+            
+        
+            
+            
 
