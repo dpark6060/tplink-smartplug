@@ -29,6 +29,7 @@ from itertools import cycle
 import random
 import pprint
 import rapidjson
+import dirtyjson
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -194,11 +195,14 @@ class Bulb:
         return lights
 
     def __init__(self, ip_port, sysinfo=None, sock=GlobalSocket):
-        print(sysinfo)
+        print(ip_port)
+        #print(sysinfo)
         self.addr = ip_port
         self.sock = sock
         self.transition_period_ms = 0
         self.name = 'unknown'
+        self.prev_hue = 0
+        
 
         if sysinfo:
             self._read_sysinfo(sysinfo)
@@ -206,22 +210,64 @@ class Bulb:
             self.refresh()
 
     def _read_sysinfo(self, sysinfo):
-        js = json.loads(dec(sysinfo))['system']['get_sysinfo']
+        
+        print(sysinfo)
+        try:
+            js = json.loads(sysinfo)
+        except Exception:
+            print('Adding } 1')
+            n=0
+            while n < 5:
+                sysinfo+='}'
+                try:
+                    js = json.loads(sysinfo)
+                except Exception as e:
+                    print('Adding } '+str(n+2))
+                    n+=1
+                else:
+                    break
+                
+
+        #print(js)
+        if 'system' not in js.keys():
+            self.cmd(Bulb.trans_cmd_str({'on_off': 1}))
+            time.sleep(0.01)
+            sysinfo = self.response_cmd(Bulb.SYS_CMD)
+            js = json.loads(sysinfo)
+            print(js)
+            print(self.addr[0])
+            if 'system' not in js.keys():
+                self.name = 'unknown'
+                self.power = 1
+                self.state = 0
+                self.current_hue = 0
+                return
+
+        js = js['system']['get_sysinfo']
 
         self.name = js['alias']
         self.power = js['light_state']['on_off'] == 1
         state = js['light_state'] if self.power else js['preferred_state'][0]
         self.state = state
-    
+        self.current_hue = state.get('hue')
+        self.is_color = js.get('is_color')
+        if self.is_color == None:
+            self.is_color = 1
+        
+        
     # def onoff_cmd(self, val):
     #     return(f'"on_off":{val}')
     # 
     # def hue_cmd(self,val):
     #     return(f'"hue":{val}')
     
-    def set_state(self, **kwargs):
-
-        return self.cmd(Bulb.trans_cmd_str(kwargs))
+    def set_state(self, cmds):
+        
+        if 'hue' in cmds:
+            self.prev_hue = self.current_hue
+            self.current_hue = cmds['hue']
+            
+        return self.cmd(Bulb.trans_cmd_str(cmds))
         
     
     def write_state(self, transition_ms=0):
@@ -239,35 +285,44 @@ class Bulb:
         return self.cmd(Bulb.trans_cmd_str(d))
 
     def hue(self, hue):
-        hue_cmd = Bulb.trans_cmd_str({'hue': hue})
+        self.prev_hue = self.current_hue
+        self.current_hue = hue
+        hue_cmd = Bulb.trans_cmd_str({'hue': hue,'transition_period':0})
         return self.cmd(hue_cmd)
 
     def onoff(self):
         self.power = not self.power
         value = 1 if self.power else 0
-        return self.cmd(Bulb.trans_cmd_str({'on_off': value}))
+        return self.cmd(Bulb.trans_cmd_str({'on_off': value, 'transition_period': 0}))
 
     def off(self):
         if self.power:
             self.power = False
             return self.cmd(Bulb.trans_cmd_str({'on_off': 0}))
+        
+    def on(self):
+        if not self.power:
+            self.power = True
+            return self.cmd(Bulb.trans_cmd_str({'on_off': 1}))
     
     def response_cmd(self, cmd_string):
-        print(cmd_string)
+        #print(cmd_string)
         e = enc(cmd_string)
         self.sock.sendto(e, self.addr)
-        data, addr = self.sock.recvfrom(1025)
-        return(data)
+        data, addr = self.sock.recvfrom(2046)
+        return(dec(data))
     
     def cmd(self, cmd_string):
-        print(cmd_string)
         e = enc(cmd_string)
         self.sock.sendto(e, self.addr)
         #data, addr = self.sock.recvfrom(1025)
         #return(data)
 
     def color_mode(self):
-        self.set_state(**{"on_off":1,"saturation":100,"brightness":100,"color_temp":0,"hue":0})
+        if self.is_color == 1:
+            self.set_state({"on_off":1,"saturation":100,"brightness":100,"color_temp":0,"hue":0})
+        else:
+            self.off()
         
     def refresh(self):
         self._read_sysinfo(self.response_cmd(Bulb.SYS_CMD))
@@ -277,153 +332,16 @@ class Bulb:
 
     def __repr__(self):
         return f"<{self.__str__()}>"
-
-
-
-
-
-
-
-
-
-
-
-
-class tplink_huebulb:
-    def __init__(self, ip, port = 9999):
-        self.ip = ip
-        self.port = port
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.connect((ip, port))
-        
-        self.hue = 0
-        self.brightness = 100
-        self.saturation = 100
-        
-        self.prev_hue = 0
-        self.prev_brightness = 0
-        self.prev_sat = 0
-        
-        self.party_hue = 0
-        self.party_hues = [0, 120, 240]
-        
-        self.commands={
-            
-            'hue': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default":1,"transition_period":0,"hue": ^IN}}}',
-            'on': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default":1,"transition_period":0,"on_off": 1}}}',
-            'off':        '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default":1,"transition_period":0,"on_off": 0}}}',
-            'brightness': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default": 1, "transition_period": 0,"brightness": ^IN}}}',
-            'saturation': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default": 1, "transition_period": 0,"saturation": ^IN}}}',
-            'color_mode': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"saturation": 100, "brightness": 100, "color_temp": 0, "hue": 0}}}',
-            'color_temp': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"color_temp": ^IN}}}',
-            'soft_off': '{"smçartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default":1,"transition_period":0,"brightness": 0, "hue": 0 }}}',
-            'bright_hue': '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"ignore_default":1,"transition_period":0,"hue": ^IN, "brightness": 100}}}'
-        }
-    
-    def status(self):
-        
-        sock_tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock_tcp.settimeout(10)
-        sock_tcp.connect((self.ip, self.port))
-        sock_tcp.send(encrypt('{"system":{"get_sysinfo":{}}}'))
-        data = sock_tcp.recv(2048)
-        sock_tcp.close()
-
-        decrypted = decrypt(data[4:])
-        dj = json.loads(decrypted)
-        pprint.pprint(dj)
-        
-    
-    def color_mode(self):
-        self.send_command('color_mode')
-        
-    
-    def reconnect(self):
-        self.socket.close()
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.connect((self.ip, self.port))
-    
-    def send(self):
-        self.socket.send(encrypt(self.cmd))
-    
-    def set_hue(self, hue):
-        self.cmd = self.commands['hue'].replace('^IN', str(hue))
-        self.send()
-        
-        self.prev_hue = self.hue
-        self.hue = hue
-    
-    def set_prev_hue(self):
-        self.set_hue(self, self.prev_hue)
-    
-    def send_command(self, command, val=''):
-        
-        if command == 'custom':
-            self.cmd = '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": '+ val +'}}'
-            self.send()
-        else:
-            self.cmd = self.commands[command].replace('^IN', str(val))
-            self.send()
-        
-        if command == 'hue':
-            self.prev_hue = self.hue
-            self.hue = val
-        elif command == 'brightness':
-            self.prev_brightness = self.brightness
-            self.brightness = val
-        elif command == 'saturation':
-            self.prev_saturation = self.saturation
-            self.saturation = val
     
     
-    def party_once(self):
-        party_hue = self.party_hue
-        while party_hue == self.party_hue:
-            party_hue = random.choice(self.party_hues)
-        self.send_command('hue', party_hue)
-        self.party_hue = party_hue
 
-        
-    def __exit__(self):
-        self.socket.close()
-        
-    def test_state(self):
-        self.cmd = '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"hue": 0,"transition_period": 0}}}'
-        self.send()
-        time.sleep(1)
-        self.set_hue(120)
-        time.sleep(1)
-        self.set_hue(240)
-
-    def test_breathe(self,hue,tp):
-        self.cmd = '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"hue": '+str(hue)+',"transition_period": '+str(tp)+'}}}'
-        self.send()
-
-
-    def test_bright(self, bright, tp):
-        self.cmd = '{"smartlife.iot.smartbulb.lightingservice": {"transition_light_state": {"brightness": '+str(bright)+',"transition_period": '+str(tp)+'}}}'
-        self.send()
-        
-# colors = {
-#     'bedroom2': '192.168.0.107',
-#     'bedroom1': '192.168.0.153',
-#     'livingroom2': '192.168.0.137',
-#     'livingroom1': '192.168.0.157',
-#     'br_hall_color': '192.168.0.154',
-#     'kt_hall_color': '192.168.0.108'
-#     }
-# 
-# test = tplink_huebulb(colors['livingroom1'])
-# test.send_command('hue', 120)
-
-def rotate(l, n):
-    return l[n:] + l[:n]
 
 
 class bulb_group:
     def __init__(self, bulb_ips, name=''):
+        print(bulb_ips)
         self.name = name
-        self.bulbs = [tplink_huebulb(ip) for ip in bulb_ips]
+        self.bulbs = [Bulb((ip, 9999)) for ip in bulb_ips]
         self.nbulbs = len(self.bulbs)
         self.call_time = 0.001*self.nbulbs
         self.party_hue = 0
@@ -487,9 +405,9 @@ class bulb_group:
             
             while party_hue == self.party_hue:
                 party_hue = random.choice(hues)
-                print(f'party_hue = {party_hue}')
+                #print(f'party_hue = {party_hue}')
                 
-            self.send_command('hue', party_hue)
+            self.hue(party_hue)
             self.party_hue = party_hue
             time.sleep(delay)
             n -= 1
@@ -498,19 +416,25 @@ class bulb_group:
             if tock - tick > 60*2:
                 self.reconnect()
                 
-                
+    def set_state(self,cmds):
+        [bulb.set_state(cmds) for bulb in self.bulbs]
         
     def party_once(self):
         party_hue = self.party_hue
         while party_hue == self.party_hue:
             party_hue = random.choice(self.party_hues)
-        self.send_command('hue', party_hue)
+        self.hue(party_hue)
         self.party_hue = party_hue
         
-        
+    def hue(self, hue):
+        [bulb.hue(hue) for bulb in self.bulbs]
+
     def set_prev_hue(self):
         [bulb.set_prev_hue() for bulb in self.bulbs]
-
+    
+    def color_mode(self):
+        
+        [bulb.color_mode() for bulb in self.bulbs]
 
     def test_breathe(self, hue, tp):
         [bulb.test_breathe(hue, tp) for bulb in self.bulbs]
@@ -522,7 +446,7 @@ class bulb_group:
 class space_group:
     def __init__(self, devices_list):
         self.groups = devices_list
-        self.party_hues = [0,120,240]
+        self.party_hues = list(range(0,359,30)) 
     
     def reconnect(self):
         [g.reconnect() for g in self.groups]
@@ -632,8 +556,10 @@ class space_group:
     
     def party_once(self):
         [group.party_once() for group in self.groups]
-
-
+    
+    def color_mode(self):
+        [group.color_mode() for group in self.groups]
+        
     def timed_pulse(self, transition=1000, delay=0.1, interval=5, n=float('inf')):
         
         hues = cycle([0, 120, 240])
@@ -652,6 +578,7 @@ class space_group:
                 tock = time.time()
             
         
-            
+    def set_state(self,cmds):
+        [group.set_state(cmds) for group in self.groups]
             
 
