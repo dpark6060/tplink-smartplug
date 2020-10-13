@@ -70,9 +70,9 @@ class color_breathe:
 class Fireplace:
     def __init__(self, bulbs, hues=None, brights=None, hue_pdiff=10, bright_pdiff=10, mx_speed=400, mn_speed=100):
         if hues is None:
-            hues = list(range(30))
+            hues = list(range(20))
         if brights is None:
-            brights = list(range(10,25))
+            brights = list(range(5,12))
         
         self.hue_pdiff = hue_pdiff
         self.bright_pdiff = bright_pdiff
@@ -134,7 +134,7 @@ class Fireplace:
     
     def equalize_brightness(self, hue,bright):
 
-        b=-0.01
+        b=-0.03
         adj_bright = bright + b*(hue-15)
         #print(adj_bright)
         return(int(adj_bright))
