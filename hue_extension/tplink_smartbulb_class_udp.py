@@ -180,19 +180,19 @@ class Bulb:
         msg = enc(Bulb.SYS_CMD)
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        s.sendto(msg, ('255.255.255.255', 9999))
 
-        lights = []
+        data_addr = []
         try:
+
+            s.sendto(msg, ('255.255.255.255', 9999))
             while True:
                 s.settimeout(timeout)
-                data, addr = s.recvfrom(1025)
-                lights.append(Bulb(addr, sysinfo=dec(data)))
+                data_addr.append(s.recvfrom(2048))
 
         except socket.timeout:
             pass
 
-        return lights
+        return [Bulb(a, sysinfo=dec(d)) for d, a in data_addr]
 
     def __init__(self, ip_port, sysinfo=None, sock=GlobalSocket):
         print(ip_port)
@@ -212,36 +212,8 @@ class Bulb:
     def _read_sysinfo(self, sysinfo):
         
         print(sysinfo)
-        try:
-            js = json.loads(sysinfo)
-        except Exception:
-            print('Adding } 1')
-            n=0
-            while n < 5:
-                sysinfo+='}'
-                try:
-                    js = json.loads(sysinfo)
-                except Exception as e:
-                    print('Adding } '+str(n+2))
-                    n+=1
-                else:
-                    break
-                
 
-        #print(js)
-        if 'system' not in js.keys():
-            self.cmd(Bulb.trans_cmd_str({'on_off': 1}))
-            time.sleep(0.01)
-            sysinfo = self.response_cmd(Bulb.SYS_CMD)
-            js = json.loads(sysinfo)
-            print(js)
-            print(self.addr[0])
-            if 'system' not in js.keys():
-                self.name = 'unknown'
-                self.power = 1
-                self.state = 0
-                self.current_hue = 0
-                return
+        js = json.loads(sysinfo)
 
         js = js['system']['get_sysinfo']
 
@@ -250,6 +222,7 @@ class Bulb:
         state = js['light_state'] if self.power else js['preferred_state'][0]
         self.state = state
         self.current_hue = state.get('hue')
+        self.current_bright = state.get('brightness')
         self.is_color = js.get('is_color')
         if self.is_color == None:
             self.is_color = 1
@@ -306,11 +279,29 @@ class Bulb:
             return self.cmd(Bulb.trans_cmd_str({'on_off': 1}))
     
     def response_cmd(self, cmd_string):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         #print(cmd_string)
+        
         e = enc(cmd_string)
-        self.sock.sendto(e, self.addr)
-        data, addr = self.sock.recvfrom(2046)
-        return(dec(data))
+        data_addr = []
+        timeout = 0.1
+        
+        try:
+
+            s.sendto(e, self.addr)
+            while True:
+                s.settimeout(timeout)
+                data_addr.append(s.recvfrom(2048))
+
+        except socket.timeout:
+            pass
+      
+        
+        d=data_addr[0][0]
+
+        sysinfo = dec(d)
+        return(sysinfo)
     
     def cmd(self, cmd_string):
         e = enc(cmd_string)

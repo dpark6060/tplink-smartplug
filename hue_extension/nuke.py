@@ -4,7 +4,7 @@ import random
 
 
 def set_white(bulbs):
-    cmd = {'saturation':0,'color_temp':5000}
+    cmd = {'on_off':1,'brightness':50,'saturation':0,'color_temp':5000}
     [bulb.set_state(cmd) for bulb in bulbs]
     
 
@@ -24,7 +24,9 @@ def flicker(lights,duration):
 def strobe_red(lights):
     
     [light.on() for light in lights]
+    time.sleep(0.05)
     [light.color_mode() for light in lights]
+    time.sleep(0.05)
     
     dim = {'brightness':0, 'transition_period':0}
     bright = {'brightness':100,'transition_period':0}
@@ -40,13 +42,11 @@ def strobe_red(lights):
 
 
 
-
-
 if __name__ == '__main__':
 
     bulbs = tp.Bulb.all()
     
     set_white(bulbs)
-    flicker(bulbs,4)
+    flicker(bulbs,5)
     strobe_red(bulbs)
 
