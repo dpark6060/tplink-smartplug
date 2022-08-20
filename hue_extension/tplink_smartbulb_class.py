@@ -616,7 +616,7 @@ class space_group:
                 logging.error(f'{lines[i]}')
                 time.sleep(delay)
 
-        self.party()
+        self.party(delay=0.3)
 
 
     def party(self, delay=0.1):

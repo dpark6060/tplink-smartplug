@@ -1,9 +1,15 @@
 import tplink_smartbulb_class_udp as tp
 import time
 import random
-
+import sys
 
 def set_white(bulbs):
+    # print('\n\n\n\n\n\n\n\n\n\n')
+    # for b in bulbs:
+    #     print(b.js)
+    # 
+    #sys.exit()
+    
     cmd = {'on_off':1,'brightness':50,'saturation':0,'color_temp':5000}
     [bulb.set_state(cmd) for bulb in bulbs]
     
@@ -45,7 +51,7 @@ def strobe_red(lights):
 if __name__ == '__main__':
 
     bulbs = tp.Bulb.all()
-    
+    print(len(bulbs))
     set_white(bulbs)
     flicker(bulbs,5)
     strobe_red(bulbs)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.9
 #
 # TP-Link Wi-Fi Smart Plug Protocol Client
 # For use with TP-Link HS-100 or HS-110
@@ -172,11 +172,16 @@ class Bulb:
             '"transition_light_state":{', cmd, '}}}'
         ))
 
+
+
+
+
     @staticmethod
     def all(timeout=1):
         """ Find all of the lightbulbs on your network. Most respond in
             less than 0.1 seconds
         """
+        print('CHANGE MADE')
         msg = enc(Bulb.SYS_CMD)
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -187,36 +192,78 @@ class Bulb:
             s.sendto(msg, ('255.255.255.255', 9999))
             while True:
                 s.settimeout(timeout)
-                data_addr.append(s.recvfrom(2048))
+                # This seems to reliably extract the full data from each bulb.
+                # Problems with extra_bytes < 25: Occasionally the incoming json file is 
+                # clipped and doesn't load.
+                # Too long and sometimes it catches the NEXT bulbs data and that gets dropped.
+                # I think the best thing to do here is to NOT send data at all, and have the 
+                # Bulb created with No sysinfo.  That way on init it will refresh.  
+                
+                extra_bytes = 25
+                #extra_bytes = 0
+                a = s.recvfrom(1024 + extra_bytes)
+                print(a[1])
+                data_addr.append(a)
 
         except socket.timeout:
+            print('timeout in initial bulb collection')
             pass
-
-        return [Bulb(a, sysinfo=dec(d)) for d, a in data_addr]
+        
+        return [Bulb(a, sysinfo=None) for d, a in data_addr]
+        # bulbs = [Bulb(a, sysinfo=dec(d)) for d, a in data_addr]
+        # bulbs = [b for b in bulbs if b.is_light == 1]
+        # 
+        # return bulbs
 
     def __init__(self, ip_port, sysinfo=None, sock=GlobalSocket):
         print(ip_port)
-        #print(sysinfo)
+        print(sysinfo)
         self.addr = ip_port
         self.sock = sock
         self.transition_period_ms = 0
         self.name = 'unknown'
         self.prev_hue = 0
+        self.is_light = 1
+        self.power = False
+        self.is_color = False
+        self.js = {}
+        self.current_hue = 0
         
 
         if sysinfo:
-            self._read_sysinfo(sysinfo)
+            a = self._read_sysinfo(sysinfo)
+            if a == False:
+                self.is_light == 0
         else:
             self.refresh()
+            
+        print(self.js)
+            
 
     def _read_sysinfo(self, sysinfo):
         
-        print(sysinfo)
+        #print(sysinfo)
 
         js = json.loads(sysinfo)
 
         js = js['system']['get_sysinfo']
-
+        #print(js)
+        
+        # if js.get('model')=="HS103(US)" or js.get('model')=="HS107(US)" or js.get('model')=='HS105(US)' or js.get('type')=="IOT.SMARTPLUGSWITCH":
+        #     return
+        #print(js.get('model'))
+        
+        
+        # if js.get('description') != 'Smart Wi-Fi LED Bulb with Color Changing':
+        #     return False
+        # 
+        print(js.get('model'))
+        print(js.get('model').find('KL130'))
+        if js.get('model').find('KL130') == -1 and js.get('model').find('KL120') == -1 and js.get('model').find('LB130') == -1:
+            return False
+        
+        
+        self.js = js
         self.name = js['alias']
         self.power = js['light_state']['on_off'] == 1
         state = js['light_state'] if self.power else js['preferred_state'][0]
@@ -226,6 +273,8 @@ class Bulb:
         self.is_color = js.get('is_color')
         if self.is_color == None:
             self.is_color = 1
+            
+        return True
         
         
     # def onoff_cmd(self, val):
@@ -264,6 +313,7 @@ class Bulb:
         return self.cmd(hue_cmd)
 
     def onoff(self):
+        #print self.
         self.power = not self.power
         value = 1 if self.power else 0
         return self.cmd(Bulb.trans_cmd_str({'on_off': value, 'transition_period': 0}))
@@ -281,26 +331,60 @@ class Bulb:
     def response_cmd(self, cmd_string):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        #print(cmd_string)
+        print(cmd_string)
         
         e = enc(cmd_string)
         data_addr = []
-        timeout = 0.1
+        timeout = .5
+        
+        
+        print(self.addr)
+        s.sendto(e, self.addr)
+        data_addr = []
+        max_tries = 3
+        try_n = 0
+        s.settimeout(timeout)
+        #s.setblocking(0)
+        
+        while try_n < max_tries:
+            data = None
+            try:
+                data = s.recv(2048)
+                if data:
+                    data_addr=data
+                    break
+            except socket.timeout:
+                if data:
+                    data_addr = data
+                    break
+            
+            try_n += 1
+            print(f"Failed...attempt {try_n}")
+            print("Waiting 0.5 seconds")
+            time.sleep(0.5)
+            print('Closing socket')
+            s.close()
+            print('reopening')
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            print('setting options')
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            print('setting sendto address')
+            s.sendto(e, self.addr)
+            print('setting timeout')
+            s.settimeout(timeout)
+            print('retrying')
+ 
         
         try:
+            d = data_addr
+            sysinfo = dec(d)
+        except Exception as e:
+            print('ERROR')
+            print(data_addr)
+            sysinfo = None
 
-            s.sendto(e, self.addr)
-            while True:
-                s.settimeout(timeout)
-                data_addr.append(s.recvfrom(2048))
-
-        except socket.timeout:
-            pass
-      
         
-        d=data_addr[0][0]
-
-        sysinfo = dec(d)
+        #print(sysinfo)
         return(sysinfo)
     
     def cmd(self, cmd_string):
@@ -310,10 +394,13 @@ class Bulb:
         #return(data)
 
     def color_mode(self):
+        print(self.is_color)
         if self.is_color == 1:
-            self.set_state({"on_off":1,"saturation":100,"brightness":100,"color_temp":0,"hue":0})
+            print('color')
+            self.set_state({"on_off":1, "saturation":100, "brightness":100, "color_temp":0, "hue":0})
         else:
             self.off()
+        
         
     def refresh(self):
         self._read_sysinfo(self.response_cmd(Bulb.SYS_CMD))
@@ -346,7 +433,7 @@ class bulb_group:
     
         
     def send_command(self, command, val=''):
-        [bulb.send_command(command, val) for bulb in self.bulbs]
+        [bulb.set_state({'hue': val}) for bulb in self.bulbs]
     
     
     
@@ -428,7 +515,7 @@ class bulb_group:
         [bulb.color_mode() for bulb in self.bulbs]
 
     def test_breathe(self, hue, tp):
-        [bulb.test_breathe(hue, tp) for bulb in self.bulbs]
+        [bulb.set_state({'hue': hue, 'transition_period': tp}) for bulb in self.bulbs]
 
     def test_bright(self, bright, tp):
         [bulb.test_bright(bright,tp) for bulb in self.bulbs]
@@ -514,11 +601,11 @@ class space_group:
         wave_obj = sa.WaveObject(audio_data, num_channels, bytes_per_sample, sample_rate)
         play_obj = wave_obj.play()
 
-        self.send_command('color_mode')
+        #self.send_command('color_mode')
         for m, t in zip(messages, message_times):
             progress_bar(m, t)
             
-        self.send_command('hue',240)
+        self.set_state({'hue': 240})
         
         party_list = 'data/dancetypes.txt'
         partyfile = open(party_list,'r')
@@ -534,7 +621,7 @@ class space_group:
         self.party()
 
 
-    def party(self, delay=0.1):
+    def party(self, delay=0.2):
         while True:
             [group.party_once() for group in self.groups]
             time.sleep(delay)
@@ -553,7 +640,7 @@ class space_group:
         
     def timed_pulse(self, transition=1000, delay=0.1, interval=5, n=float('inf')):
         
-        hues = cycle([0, 120, 240])
+        hues = cycle(self.party_hues)
        
         
         while n > 0:
