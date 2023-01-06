@@ -7,7 +7,7 @@ class Aquarium:
     def __init__(self, ips, hues):
         bulbs = [sb.Bulb((ipa, 9999)) for ipa in ips]
         [b.color_mode() for b in bulbs]
-        [b.set_state({'brightness':10}) for b in bulbs]
+        [b.set_state({'brightness':5}) for b in bulbs]
         
         self.bulbs = {b.addr[0]:{'bulb':b, 'rest':0} for b in bulbs}
         
@@ -28,7 +28,7 @@ class Aquarium:
         self.fade_span = self.max_fade - self.min_fade
 
         self.min_rest = 250
-        self.max_rest = 5000
+        self.max_rest = 3000
         self.rest_span = self.max_rest - self.min_rest
         
         

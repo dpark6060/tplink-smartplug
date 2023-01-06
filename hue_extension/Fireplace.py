@@ -1,3 +1,13 @@
+import time
+import random
+import numpy as np
+import matplotlib.pyplot as pl
+import scipy as sp
+from scipy.stats import poisson
+import tplink_smartbulb_class_udp as sb
+bgroups=[["entr_hue_01"], ["lvrm_hue_01", "lvrm_hue_02"], ["hwkt_hue_02","hwkt_hue_01"],["hwbr_hue_01","hwbr_hue_02"], ["bdrm_hue_02", "bdrm_hue_01"]]
+
+
 class Fireplace:
     def __init__(self, bulbs, hues=None, brights=None, hue_pdiff=10, bright_pdiff=10, mx_speed=400, mn_speed=100):
         if hues is None:
@@ -188,3 +198,24 @@ class Fireplace:
         pass
 
 
+
+def generate_flicker_interval_poisson():
+    flicker_rage_hz = poisson.rvs(4, size=1) + 0.5
+    flicker_time_ms  = 1.0 / flicker_rage_hz * 1000
+    return int(flicker_time_ms)
+
+def generate_command():
+    brightness = int(np.random.rand()*50)+25
+    fade = generate_flicker_interval_poisson()
+    command = {'brightness': brightness,'transition_period': fade}
+    return command,fade
+
+
+
+
+bulbs = sb.Bulb.all()
+bulb_group = sb.bulb_group([b.addr[0] for b in bulbs if b.name in ["bdrm_hue_02", "bdrm_hue_01"]])
+while True:
+    command,fade=generate_command()
+    bulb_group.set_state(command)
+    time.sleep(fade/1000.0)
