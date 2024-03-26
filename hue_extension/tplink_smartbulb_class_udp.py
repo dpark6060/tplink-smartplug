@@ -134,7 +134,6 @@ def decrypt(string):
 
 GlobalSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-
 def enc(ascii_string):
     key = 0xAB
     bs = bytearray(ascii_string, 'ascii')
@@ -621,7 +620,7 @@ class space_group:
         self.party()
 
 
-    def party(self, delay=0.2):
+    def party(self, delay=0.08):
         while True:
             [group.party_once() for group in self.groups]
             time.sleep(delay)

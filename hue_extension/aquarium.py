@@ -7,7 +7,7 @@ class Aquarium:
     def __init__(self, ips, hues):
         bulbs = [sb.Bulb((ipa, 9999)) for ipa in ips]
         [b.color_mode() for b in bulbs]
-        [b.set_state({'brightness':5}) for b in bulbs]
+        [b.set_state({'brightness':10}) for b in bulbs]
         
         self.bulbs = {b.addr[0]:{'bulb':b, 'rest':0} for b in bulbs}
         
@@ -24,7 +24,7 @@ class Aquarium:
         # for faster party
         self.hues = hues
         self.max_fade = 5000
-        self.min_fade = 200
+        self.min_fade = 1000
         self.fade_span = self.max_fade - self.min_fade
 
         self.min_rest = 250
@@ -112,13 +112,16 @@ acq_hues = [162, 278, 204, 305, 240, 240, 240, 240,0,20,340,0,20,340,20,340,0]
 # "192.168.0.112",
 # "192.168.0.180"]
 
+#ips = ["10.16.5.111"]
+
 #bulbs = [sb.Bulb((ip, 9999)) for ip in ips]
 bulbs = sb.Bulb.all()
+print(bulbs)
 #bulbs = sb.Bulb.all()
 ips = [b.addr[0] for b in bulbs]
 
 [b.color_mode() for b in bulbs]
-[b.set_state({'brightness': 40}) for b in bulbs]
+[b.set_state({'brightness': 5}) for b in bulbs]
 acq_hues = [162, 278, 204, 305, 240, 240, 240, 240,0,20,340,0,20,340,20,340,0]
 
 acq_hues = [0, 120, 162, 278, 204, 305, 240, 340]
@@ -126,6 +129,7 @@ acq_hues = [0, 120, 162, 278, 204, 305, 240, 340]
 # ips = [b.addr[0] for b in bulbs]
 #ips = ['192.168.0.137', '192.168.0.157','192.168.0.154','192.168.0.112','192.168.0.180','192.168.0.108','192.168.0.107', '192.168.0.153','192.168.0.148']
 aq = Aquarium(ips, acq_hues)
+
 
 
 aq.aquarium()

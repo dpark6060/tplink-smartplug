@@ -214,7 +214,7 @@ def generate_command():
 
 
 bulbs = sb.Bulb.all()
-bulb_group = sb.bulb_group([b.addr[0] for b in bulbs if b.name in ["bdrm_hue_02", "bdrm_hue_01"]])
+bulb_group = sb.bulb_group([b.addr[0] for b in bulbs])
 while True:
     command,fade=generate_command()
     bulb_group.set_state(command)
